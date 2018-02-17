@@ -4,6 +4,7 @@ const request = require('request');
 const rp = require('request-promise');
 const app = express();
 const bodyParser = require("body-parser");
+const async = require('async');
 const PORT = process.env.PORT || 3000;
 const path = require('path');
 
@@ -11,7 +12,7 @@ const path = require('path');
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-app.get('/', (req,res) => {
+app.get('/', async (req,res) => {
 	let query = req.query
 	let q = query.q
 	let d = query.d
@@ -45,8 +46,12 @@ app.get('/', (req,res) => {
 			responseMessage = 'Rutgers Physics'
 			break;
 		case q === 'Puzzle':
-			let answer = solvePuzzle(query.d)
-			responseMessage = answer
+			try {
+				responseMessage = await solvePuzzle(query.d)
+			} catch (e) {
+				responseMessage = e
+			}
+
 			break;
 		case q === 'Resume':
 			responseMessage = 'https://www.dropbox.com/s/lcmbwbk68bua7y6/long%20phan%20resume%20v2.pdf?dl=0'
@@ -75,101 +80,107 @@ app.get('/', (req,res) => {
  * 3 - that leaves us with 2 rows withunfilled values, and just used the same process as #1 to fill in the blanks
  * @author Long Phan <fileislong@gmail.com>
  */
-function solvePuzzle(input) {
-
-	let split = input.split('\n');
-	// we know that every answer has a diagonal of '=' so well make static matrix
-	let matrix = [
-		['=','-','-','-'],
-		['-','=','-','-'],
-		['-','-','=','-'],
-		['-','-','-','='],
-	]
-	let letterArray = ['A', 'B', 'C', 'D']
-	//just getting rid of extra blank item
-	split.pop();
-
-	//============fill in extra clues and use reverse rule===============
-	let slice = split.slice(2, split.length)
-	for (var i = 0; i < slice.length; i++) {
-
-		let subArray = slice[i].slice(1,slice[i].length)
-
-		for (var j = 0; j < subArray.length; j++) {
-			let subArrayItem = subArray[j]
-			if (subArrayItem == '>') {
-				matrix[i][j] = '>'
-				matrix[j][i] = '<'
-				//attach hasGT or hasLT proiperty to respective row
-				matrix[i].hasGT = true
-				matrix[j].hasLT = true
-			}
-			if (subArrayItem == '<') {
-				matrix[i][j] = '<'
-				matrix[j][i] = '>'
-				//attach hasGT or hasLT proiperty to respective row
-				matrix[i].hasLT = true
-				matrix[j].hasGT = true
-			}
+async function solvePuzzle (input) {
+	return new Promise ((resolve,reject) => {
+		if (!input) {
+			reject('no input')
 		}
 
-	}
+		let split = input.split('\n');
+		// we know that every answer has a diagonal of '=' so well make static matrix
+		let matrix = [
+			['=','-','-','-'],
+			['-','=','-','-'],
+			['-','-','=','-'],
+			['-','-','-','='],
+		]
+		let letterArray = ['A', 'B', 'C', 'D']
+		//just getting rid of extra blank item
+		split.pop();
 
-	// check for rows with only one has property, those are the ones with all values being same symbol and fill in
-	for (var i = 0; i < matrix.length; i++) {
-		let row = matrix[i]
-		if (!row.hasLT) {
-			for (var r = 0; r < row.length; r++) {
-				let rowValue = row[r]
-				if (rowValue == '-') {
-					matrix[i][r] = '>'
-					matrix[i].finished = true
+		//============fill in extra clues and use reverse rule===============
+		let slice = split.slice(2, split.length)
+		for (var i = 0; i < slice.length; i++) {
+
+			let subArray = slice[i].slice(1,slice[i].length)
+
+			for (var j = 0; j < subArray.length; j++) {
+				let subArrayItem = subArray[j]
+				if (subArrayItem == '>') {
+					matrix[i][j] = '>'
+					matrix[j][i] = '<'
+					//attach hasGT or hasLT proiperty to respective row
+					matrix[i].hasGT = true
+					matrix[j].hasLT = true
+				}
+				if (subArrayItem == '<') {
+					matrix[i][j] = '<'
+					matrix[j][i] = '>'
+					//attach hasGT or hasLT proiperty to respective row
+					matrix[i].hasLT = true
+					matrix[j].hasGT = true
 				}
 			}
-		}
-		if (!row.hasGT) {
-			for (var r = 0; r < row.length; r++) {
-				let rowValue = row[r]
-				if (rowValue == '-') {
-					matrix[i][r] = '<'
-					matrix[i].finished = true
-				}
-			}
-		}
-	}
 
-	// same process as #1 but going back to rows that werent finished yet
-	for (var i = 0; i < matrix.length; i++) {
-		let row = matrix[i]
-		if (!row.finished) {
-			for (var r = 0; r < row.length; r++) {
-				let rowValue = row[r]
-				if (rowValue == '-') {
-					if (matrix[r][i] == '<') {
+		}
+
+		// check for rows with only one has property, those are the ones with all values being same symbol and fill in
+		for (var i = 0; i < matrix.length; i++) {
+			let row = matrix[i]
+			if (!row.hasLT) {
+				for (var r = 0; r < row.length; r++) {
+					let rowValue = row[r]
+					if (rowValue == '-') {
 						matrix[i][r] = '>'
-					}else {
-						matrix[i][r] ='<'
+						matrix[i].finished = true
 					}
-					matrix[i].finished = true
+				}
+			}
+			if (!row.hasGT) {
+				for (var r = 0; r < row.length; r++) {
+					let rowValue = row[r]
+					if (rowValue == '-') {
+						matrix[i][r] = '<'
+						matrix[i].finished = true
+					}
 				}
 			}
 		}
-	}
-	//after everything is filled in lets get only symbols
-	// lets get final array
-	let final = []
-	for (var i = 0; i < matrix.length; i++) {
-		let symbols = matrix[i].slice(0,4);
-		let letter = letterArray[i];
-		final.push(letter + symbols.join(''))
-	}
 
-	//lets compile answer to be returned
-	let answer = ' ABCD\n'
-	for (var i = 0; i < final.length; i++) {
-		answer += final[i] +'\n'
-	}
-	return answer
+		// same process as #1 but going back to rows that werent finished yet
+		for (var i = 0; i < matrix.length; i++) {
+			let row = matrix[i]
+			if (!row.finished) {
+				for (var r = 0; r < row.length; r++) {
+					let rowValue = row[r]
+					if (rowValue == '-') {
+						if (matrix[r][i] == '<') {
+							matrix[i][r] = '>'
+						}else {
+							matrix[i][r] ='<'
+						}
+						matrix[i].finished = true
+					}
+				}
+			}
+		}
+		//after everything is filled in lets get only symbols
+		// lets get final array
+		let final = []
+		for (var i = 0; i < matrix.length; i++) {
+			let symbols = matrix[i].slice(0,4);
+			let letter = letterArray[i];
+			final.push(letter + symbols.join(''))
+		}
+
+		//lets compile answer to be returned
+		let answer = ' ABCD\n'
+		for (var i = 0; i < final.length; i++) {
+			answer += final[i] +'\n'
+		}
+		resolve(answer)
+	})
+
 
 }
 
