@@ -49,7 +49,7 @@ app.get('/', async (req,res) => {
 			try {
 				responseMessage = await solvePuzzle(query.d)
 			} catch (e) {
-				responseMessage = e
+				responseMessage = typeof(e) === 'string' ? e : 'error'
 			}
 
 			break;
@@ -85,7 +85,6 @@ async function solvePuzzle (input) {
 		if (!input) {
 			reject('no input')
 		}
-
 		let split = input.split('\n');
 		// we know that every answer has a diagonal of '=' so well make static matrix
 		let matrix = [
