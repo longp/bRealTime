@@ -1,5 +1,5 @@
 # bRealTime
-resumes.brealtime.com challenge
+bRealTime coding challenge
 
 simple node web server that responds to GET requests
 
